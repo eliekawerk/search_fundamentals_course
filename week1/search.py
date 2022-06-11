@@ -80,10 +80,11 @@ def query():
             sortDir = "desc"
         query_obj = create_query(user_query, [], sort, sortDir)
     elif request.method == 'GET':  # Handle the case where there is no query or just loading the page
-        user_query = request.args.get("query", "*")
+        user_query = request.args.get("query", "*") 
         filters_input = request.args.getlist("filter.name")
         sort = request.args.get("sort", sort)
         sortDir = request.args.get("sortDir", sortDir)
+        print("User query: ", user_query)
         if filters_input:
             (filters, display_filters, applied_filters) = process_filters(filters_input)
 
@@ -110,17 +111,66 @@ def query():
 
 
 def create_query(user_query, filters, sort="_score", sortDir="desc"):
-    print("Query: {} Filters: {} Sort: {}".format(user_query, filters, sort))
+    print(
+        "Query: {} Filters: {} Sort: {}".format(user_query, filters, sort)
+    )
     query_obj = {
         "size": 10,
-        "query": {
-            "query_string": {
-                "query": user_query,
-                "fields": ["name", "shortDescription", "longDescription"],
-                "phrase_slop": 3
-            },
-            "filter": filters
+        "query": {            
+            "function_score": {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "query_string": {
+                                    "query": user_query,
+                                    "fields": ["name^100", "shortDescription^50", "longDescription^10", "department"],
+                                    "phrase_slop": 3
+                                }                            
+                            }
+                        ],
+                        "filter": filters                                                    
+                    }
+                },
+                "boost_mode": "multiply",
+                # "boost_mode": "replace",
+                "functions": [
+                    {
+                        "field_value_factor": {
+                            "field": "salesRankLongTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }                            
+                    },
+                    {                            
+                        "field_value_factor": {
+                            "field": "salesRankShortTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }                            
+                    },     
+                    {                                       
+                        "field_value_factor": {
+                            "field": "salesRankMediumTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }                                               
+                    },                                                                            
+                ],
+                "score_mode": "avg"                     
+            }                       
         },
+        "_source": [
+            "productId", 
+            "name", 
+            "shortDescription",
+            "longDescription", 
+            "department",
+            "salesRankShortTerm",  
+            "salesRankMediumTerm", 
+            "salesRankLongTerm",
+            "regularPrice"
+        ],
         "aggs": {
             #### Step 4.b.i: create the appropriate query and aggregations here
             "regularPrice": {
@@ -128,46 +178,62 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
                     "field": "regularPrice",
                     "ranges": [
                         {
-                            "to": 5
+                            "from": 0,
+                            "to": 200,
+                            "key": "$"
                         },
                         {
-                            "from": 5,
-                            "to": 20
+                            "from": 200,
+                            "to": 600,
+                            "key": "$$"
                         },
                         {
-                            "from": 20,
+                            "from": 600,
+                            "to": 1000,
+                            "key": "$$$"
+                        },
+                        {
+                            "from": 1000,
+                            "to": 2000,
+                            "key": "$$$$"
+                        },
+                        {
+                            "from": 2000,
+                            "key": "$$$$$"
                         }
                     ]
                 }
             },
             "department": {
                 "terms": {
-                    "field": "department",
+                    "field": "department.keyword",
                     "size": 10,
                     "min_doc_count": 0
                 }
             },
             "missing_images": {
-                "missing": {"field": "image"}
+                "missing": {"field": "image.keyword"}
             }
         },
         "sort": [
+            sort,
             {
                 "regularPrice": {
                     "order": sortDir
-                },
+                }
+            },
+            {   
                 "name.keyword": {
                     "order": sortDir
-                },
-                sort
+                }
             }
-        ],
-        "highlight": {
+        ],        
+        "highlight": {         
             "fields": {
-                "name": {},
-                "shortDescription": {},
-                "longDescription": {}
+                "name": { "type" : "plain" },
+                "shortDescription": { "type" : "plain" },
+                "longDescription": { "type" : "plain" },
             }
-        }
+        }        
     }
     return query_obj

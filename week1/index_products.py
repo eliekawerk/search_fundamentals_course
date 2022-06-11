@@ -1,6 +1,7 @@
 # From https://github.com/dshvadskiy/search_with_machine_learning_course/blob/main/index_products.py
 import requests
 from lxml import etree
+# from concurrent.futures import ProcessPoolExecutor
 
 import click
 import glob
@@ -8,7 +9,6 @@ from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 import logging
 import time
-# import json
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -54,9 +54,6 @@ mappings = [
 
 ]
 
-# with open('opensearch/bbuy_products.json', 'r') as f:
-#     INDEX_BODY = json.loads(f.read())
-
 def get_opensearch():
     host = 'localhost'
     port = 9200
@@ -80,15 +77,11 @@ def get_opensearch():
 @click.option('--index_name', '-i', default="bbuy_products", help="The name of the index to write to")
 def main(source_dir: str, index_name: str):
     client = get_opensearch()
-    # client.indices.create(
-    #     index_name,
-    #     body=INDEX_BODY,
-    # )
     # To test on a smaller set of documents, change this glob to be more restrictive than *.xml
     files = glob.glob(source_dir + "/*.xml")
     docs_indexed = 0
     tic = time.perf_counter()  
-    for file in files[:100]:
+    for file in files:
         logger.info(f'Processing file : {file}')
         tree = etree.parse(file)
         root = tree.getroot()
