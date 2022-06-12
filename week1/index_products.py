@@ -99,7 +99,7 @@ def main(source_dir: str, index_name: str):
 
             #### Step 2.b: Create a valid OpenSearch Doc and bulk index 2000 docs at a time
             the_doc = {
-                **{'_index': index_name},
+                **{'_index': index_name, "_id": doc['sku'][0]},
                 **doc
             }
             docs.append(the_doc)
