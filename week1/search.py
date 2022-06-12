@@ -115,7 +115,7 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
         "Query: {} Filters: {} Sort: {}".format(user_query, filters, sort)
     )
     query_obj = {
-        "size": 10,
+        "size": 20,
         "query": {            
             "function_score": {
                 "query": {
@@ -155,7 +155,14 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
                             "modifier": "reciprocal",
                             "missing": 100000000
                         }                                               
-                    },                                                                            
+                    },                   
+                    {
+                        "field_value_factor": {
+                            "field": "customerReviewCount",
+                            "modifier": "log",
+                            "missing": 2
+                        }
+                    }                                                      
                 ],
                 "score_mode": "avg"                     
             }                       
@@ -169,7 +176,9 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
             "salesRankShortTerm",  
             "salesRankMediumTerm", 
             "salesRankLongTerm",
-            "regularPrice"
+            "regularPrice",
+            "image",
+            "customerReviewCount",
         ],
         "aggs": {
             #### Step 4.b.i: create the appropriate query and aggregations here
@@ -208,15 +217,22 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
                 "terms": {
                     "field": "department.keyword",
                     "size": 10,
-                    "min_doc_count": 0
+                    "min_doc_count": 0,
+                    "missing": "N/A",
                 }
             },
             "missing_images": {
-                "missing": {"field": "image.keyword"}
+                "missing": {
+                    "field": "image.keyword"
+                }                    
             }
         },
         "sort": [
-            sort,
+            {
+                sort: {
+                    "order": sortDir
+                }                
+            },
             {
                 "regularPrice": {
                     "order": sortDir
